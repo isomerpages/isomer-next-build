@@ -61,7 +61,7 @@ function readSchemaFiles(directory) {
 readSchemaFiles(schemaDirectory);
 
 fs.writeFileSync(
-  path.join(__dirname, "searchIndex.json"),
+  path.join(__dirname, "../searchIndex.json"),
   JSON.stringify(finalIndex, null, 2)
 );
 console.log("Search index created successfully!");
