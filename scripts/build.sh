@@ -8,6 +8,7 @@ echo "Build started..."
 
 curl https://raw.githubusercontent.com/isomerpages/isomer-next-base-template/main/package.json -o package.json
 curl https://raw.githubusercontent.com/isomerpages/isomer-next-base-template/main/package-lock.json -o package-lock.json
+curl https://raw.githubusercontent.com/isomerpages/isomer-next-base-template/main/tailwind.config.js -o tailwind.config.js
 
 #######################
 # Install NPM modules #
