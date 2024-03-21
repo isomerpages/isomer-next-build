@@ -4,10 +4,9 @@ const path = require("path");
 const schemaDirPath = path.join(__dirname, "../schema");
 const sitemapPath = path.join(__dirname, "../sitemap.json");
 
-async function readSchemaJson(dirPath) {
+async function readSchemaJson(filePath) {
   try {
-    const schemaFilePath = path.join(dirPath, "schema.json");
-    const schemaContent = await fs.readFile(schemaFilePath, "utf8");
+    const schemaContent = await fs.readFile(filePath, "utf8");
     return JSON.parse(schemaContent);
   } catch (error) {
     return null;
@@ -19,24 +18,43 @@ async function processDirectory(dirPath, relativePath = "") {
   let paths = [];
 
   for (const entry of entries) {
+    const entryPath = path.join(dirPath, entry.name);
+
+    if (entry.name === "index.json") {
+      continue;
+    }
+
     if (entry.isDirectory()) {
-      const subDirPath = path.join(dirPath, entry.name);
       const subRelativePath = path.join(relativePath, entry.name);
-      const schemaData = await readSchemaJson(subDirPath);
-      if (schemaData) {
-        const permalink = schemaData.permalink || `/${subRelativePath}`;
+
+      // Check if index.json exists
+      const indexFilePath = path.join(entryPath, "index.json");
+      const indexSchemaData = await readSchemaJson(indexFilePath);
+
+      if (indexSchemaData) {
+        const permalink = `/${subRelativePath}`;
         paths.push({
           permalink,
-          title: schemaData.title || entry.name,
-          paths: await processDirectory(subDirPath, subRelativePath),
+          title: indexSchemaData.page.title || entry.name,
+          paths: await processDirectory(entryPath, subRelativePath),
         });
       } else {
         paths.push({
-          permalink: `/${subRelativePath}`,
-          title: entry.name,
-          paths: await processDirectory(subDirPath, subRelativePath),
+          paths: await processDirectory(entryPath, subRelativePath),
         });
       }
+    }
+
+    const schemaData = await readSchemaJson(entryPath);
+    if (schemaData) {
+      const pageName = entry.name.split(".").slice(0, -1).join(".");
+      const permalink = `/${path.join(relativePath, pageName)}`;
+      paths.push({
+        permalink,
+        title:
+          schemaData.title ||
+          pageName.charAt(0).toUpperCase() + pageName.slice(1),
+      });
     }
   }
 

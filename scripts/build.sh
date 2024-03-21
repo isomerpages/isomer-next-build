@@ -14,31 +14,39 @@ curl https://raw.githubusercontent.com/isomerpages/isomer-next-base-template/mai
 # Install NPM modules #
 #######################
 
-npm install
+# Temporary until we start doing proper releases of the Isomer components
+curl https://schema.isomer.gov.sg/isomerpages-isomer-components-0.0.13.tgz -o isomerpages-isomer-components-0.0.13.tgz
+npm install isomerpages-isomer-components-0.0.13.tgz
 
 #######################################################################
-# Generate sitemap.json and search index #
+# Generate sitemap.json and search index                              #
 #######################################################################
-mkdir -p src/scripts/
+mkdir -p scripts/
 
-curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/generate-sitemap.js -o src/scripts/generate-sitemap.js
-curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/generate-search-index.js -o src/scripts/generate-search-index.js
+curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/generate-sitemap.js -o scripts/generate-sitemap.js
+# curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/generate-search-index.js -o scripts/generate-search-index.js
 
-node src/scripts/generate-sitemap.js
+node scripts/generate-sitemap.js
 
 echo "Sitemap generated"
 
-node src/scripts/generate-search-index.js
+# node scripts/generate-search-index.js
 
-echo "Search index generated"
+# echo "Search index generated"
 
 #######################################################################
-# Copy to public folder #
+# Copy to public folder                                               #
 #######################################################################
 
-cp -v src/sitemap.json public/
-cp -v src/searchIndex.json public/
+cp -v sitemap.json public/
+# cp -v searchIndex.json public/
 
 echo "Copied sitemap and search index to public folder"
 
+#######################################################################
+# Build the site                                                      #
+#######################################################################
 
+npm run build
+
+echo "Build completed"
