@@ -37,7 +37,7 @@ const createApp = async (appName) => {
     repository: `https://github.com/isomerpages/${appName}`,
     buildSpec: AMPLIFY_BUILD_SPEC,
     environmentVariables: {
-      NEXT_PUBLIC_ISOMER_ENVIRONMENT: "staging",
+      NEXT_PUBLIC_ISOMER_NEXT_ENVIRONMENT: "staging",
     },
     customRules: [{ source: "/<*>", target: "/404.html", status: "404" }],
   });
@@ -53,7 +53,7 @@ const createApp = async (appName) => {
         framework: "Next.js - SSG",
         enableAutoBuild: true,
         environmentVariables: {
-          NEXT_PUBLIC_ISOMER_ENVIRONMENT: "production",
+          NEXT_PUBLIC_ISOMER_NEXT_ENVIRONMENT: "production",
         },
       });
 
