@@ -1,8 +1,8 @@
 const fs = require("fs").promises;
-const path = require("path");
+const _path = require("path");
 
-const schemaDirPath = path.join(__dirname, "../schema");
-const sitemapPath = path.join(__dirname, "../sitemap.json");
+const schemaDirPath = _path.join(__dirname, "../schema");
+const sitemapPath = _path.join(__dirname, "../sitemap.json");
 
 async function readSchemaJson(filePath) {
   try {
@@ -13,59 +13,77 @@ async function readSchemaJson(filePath) {
   }
 }
 
-async function processDirectory(dirPath, relativePath = "") {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+async function processFile(fullPath, relativePath, name) {
+  const schemaPath = _path.join(fullPath, name);
+  const schemaData = await readSchemaJson(schemaPath);
+  const pageName = name.split(".")[0];
+  const permalink = _path.join(relativePath, pageName);
+  const siteMapEntry = {
+    permalink,
+    title:
+      schemaData.page.title ||
+      pageName.charAt(0).toUpperCase() + pageName.slice(1),
+  };
+  // check if file is actually an index page for a directory
+  try {
+    const directoryPath = _path.join(fullPath, name.split(".")[0]);
+    const stats = await fs.stat(directoryPath);
+    if (stats.isDirectory()) {
+      return {
+        ...siteMapEntry,
+        paths: await processDirectory(directoryPath, permalink),
+      };
+    }
+    return siteMapEntry;
+  } catch (error) {
+    return siteMapEntry;
+  }
+}
+
+async function processDirectory(fullPath, relativePath) {
+  const entries = await fs.readdir(fullPath, { withFileTypes: true });
   let paths = [];
 
-  for (const entry of entries) {
-    const entryPath = path.join(dirPath, entry.name);
-
-    if (entry.name === "index.json") {
-      continue;
+  // Check if _pages.json exists
+  const pageOrderFilePath = _path.join(fullPath, "_pages.json");
+  const pageOrderData = await readSchemaJson(pageOrderFilePath);
+  if (pageOrderData) {
+    const children = pageOrderData["pages"];
+    for (const child of children) {
+      paths.push(await processFile(fullPath, relativePath, child + ".json"));
     }
+  } else {
+    // If _pages.json does not exist, process files in the directory in arbitrary order
+    const fileEntries = entries.filter((entry) => entry.isFile());
 
-    if (entry.isDirectory()) {
-      const subRelativePath = path.join(relativePath, entry.name);
-
-      // Check if index.json exists
-      const indexFilePath = path.join(entryPath, "index.json");
-      const indexSchemaData = await readSchemaJson(indexFilePath);
-
-      if (indexSchemaData) {
-        const permalink = `/${subRelativePath}`;
-        paths.push({
-          permalink,
-          title: indexSchemaData.page.title || entry.name,
-          paths: await processDirectory(entryPath, subRelativePath),
-        });
-      } else {
-        paths.push({
-          paths: await processDirectory(entryPath, subRelativePath),
-        });
-      }
-    }
-
-    const schemaData = await readSchemaJson(entryPath);
-    if (schemaData) {
-      const pageName = entry.name.split(".").slice(0, -1).join(".");
-      const permalink = `/${path.join(relativePath, pageName)}`;
-      paths.push({
-        permalink,
-        title:
-          schemaData.title ||
-          pageName.charAt(0).toUpperCase() + pageName.slice(1),
-      });
+    for (const fileEntry of fileEntries) {
+      paths.push(
+        await processFile(fileEntry.path, relativePath, fileEntry.name)
+      );
     }
   }
 
-  // Sort the paths array if needed, for example, by title or permalink
-  // paths.sort((a, b) => a.title.localeCompare(b.title));
+  return paths;
+}
+
+async function processSchemas() {
+  const entries = await fs.readdir(schemaDirPath, { withFileTypes: true });
+  let paths = [];
+  const fileEntries = entries.filter((entry) => entry.isFile());
+
+  // not ordering top level pages at the moment
+  for (const fileEntry of fileEntries) {
+    if (fileEntry.name === "index.json") {
+      continue;
+    }
+    paths.push(await processFile(fileEntry.path, "/", fileEntry.name));
+  }
 
   return paths;
 }
 
 async function generateSitemap() {
-  const rootPaths = await processDirectory(schemaDirPath);
+  const rootPaths = await processSchemas();
   const sitemap = {
     title: "Home",
     permalink: "/",
