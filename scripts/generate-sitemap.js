@@ -1,4 +1,5 @@
-const fs = require("fs").promises;
+const fs = require("fs");
+const fsp = fs.promises;
 const _path = require("path");
 
 const schemaDirPath = _path.join(__dirname, "../schema");
@@ -6,7 +7,7 @@ const sitemapPath = _path.join(__dirname, "../sitemap.json");
 
 async function readSchemaJson(filePath) {
   try {
-    const schemaContent = await fs.readFile(filePath, "utf8");
+    const schemaContent = await fsp.readFile(filePath, "utf8");
     return JSON.parse(schemaContent);
   } catch (error) {
     return null;
@@ -28,19 +29,17 @@ async function processFile(fullPath, relativePath, name) {
   };
 
   // check if file is actually an index page for a directory
-  try {
-    const directoryPath = fullPath.split(".")[0];
-    const stats = await fs.stat(directoryPath);
-    if (stats.isDirectory()) {
+  const directoryPath = fullPath.split(".")[0];
+  if (fs.existsSync(directoryPath)) {
+    const isDirectory = (await fsp.stat(directoryPath)).isDirectory();
+    if (isDirectory) {
       return {
         ...siteMapEntry,
         children: await processDirectory(directoryPath, permalink),
       };
     }
-    return siteMapEntry;
-  } catch (error) {
-    return siteMapEntry;
   }
+  return siteMapEntry;
 }
 
 // generates sitemap entries and an index file for directories without an index file
@@ -57,7 +56,7 @@ async function processDanglingDirectory(fullPath, relativePath, name) {
   const pageName = name.replace(/-/g, " ");
   const title = pageName.charAt(0).toUpperCase() + pageName.slice(1);
 
-  await fs.writeFile(
+  await fsp.writeFile(
     _path.join(fullPath + ".json"),
     JSON.stringify(
       {
@@ -83,7 +82,7 @@ async function processDanglingDirectory(fullPath, relativePath, name) {
 }
 
 async function processDirectory(fullPath, relativePath) {
-  const entries = await fs.readdir(fullPath, { withFileTypes: true });
+  const entries = await fsp.readdir(fullPath, { withFileTypes: true });
   const fileEntries = entries.filter((entry) => entry.isFile());
 
   let children = [];
@@ -151,7 +150,7 @@ async function generateSitemap() {
     children,
   };
 
-  await fs.writeFile(sitemapPath, JSON.stringify(sitemap, null, 2));
+  await fsp.writeFile(sitemapPath, JSON.stringify(sitemap, null, 2));
   console.log("Sitemap generated at:", sitemapPath);
 }
 
