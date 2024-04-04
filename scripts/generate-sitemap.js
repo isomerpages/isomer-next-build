@@ -43,15 +43,59 @@ async function processFile(fullPath, relativePath, name) {
   }
 }
 
+// Returns new index files that were generated as they might have to be added to _pages.json
+async function generateIndexFilesForDirectoriesIfMissing(dirEntries) {
+  const newIndexFiles = [];
+  for (const dirEntry of dirEntries) {
+    const indexFilePath = _path.join(dirEntry.path, dirEntry.name + ".json");
+    try {
+      await fs.access(indexFilePath);
+    } catch (error) {
+      const dirName = dirEntry.name.split(".")[0].replace(/-/g, " ");
+      await fs.writeFile(
+        indexFilePath,
+        JSON.stringify(
+          {
+            version: "0.1.0",
+            layout: "content",
+            page: {
+              title: dirName.charAt(0).toUpperCase() + dirName.slice(1),
+              contentPageHeader: {},
+            },
+            content: [],
+          },
+          null,
+          2
+        )
+      );
+      newIndexFiles.push(dirEntry.name);
+    }
+  }
+  return newIndexFiles;
+}
+
 async function processDirectory(fullPath, relativePath) {
   const entries = await fs.readdir(fullPath, { withFileTypes: true });
-  let children = [];
+  const dirEntries = entries.filter((entry) => entry.isDirectory());
+  // generate index files for directories if they do not exist
+  const newIndexFiles = await generateIndexFilesForDirectoriesIfMissing(
+    dirEntries
+  );
+  const updatedEntries = await fs.readdir(fullPath, { withFileTypes: true });
+  const fileEntries = updatedEntries.filter((entry) => entry.isFile());
 
+  let children = [];
   // Check if _pages.json exists
   const pageOrderFilePath = _path.join(fullPath, "_pages.json");
   const pageOrderData = await readSchemaJson(pageOrderFilePath);
   if (pageOrderData) {
     const childPages = pageOrderData["pages"];
+    // add generated index pages to the list of child pages
+    for (const newIndexFile of newIndexFiles) {
+      if (!childPages.includes(newIndexFile)) {
+        childPages.push(newIndexFile);
+      }
+    }
     for (const child of childPages) {
       const childEntry = await processFile(
         fullPath,
@@ -64,8 +108,6 @@ async function processDirectory(fullPath, relativePath) {
     }
   } else {
     // If _pages.json does not exist, process files in the directory in arbitrary order
-    const fileEntries = entries.filter((entry) => entry.isFile());
-
     for (const fileEntry of fileEntries) {
       const childEntry = await processFile(
         fileEntry.path,
@@ -81,11 +123,17 @@ async function processDirectory(fullPath, relativePath) {
   return children;
 }
 
-async function processSchemas() {
+async function processSchemaDirectory() {
   const entries = await fs.readdir(schemaDirPath, { withFileTypes: true });
-  let children = [];
-  const fileEntries = entries.filter((entry) => entry.isFile());
+  const dirEntries = entries.filter((entry) => entry.isDirectory());
+  // generate index files for directories if they do not exist
+  await generateIndexFilesForDirectoriesIfMissing(dirEntries);
+  const updatedEntries = await fs.readdir(schemaDirPath, {
+    withFileTypes: true,
+  });
+  const fileEntries = updatedEntries.filter((entry) => entry.isFile());
 
+  let children = [];
   // not ordering top level pages at the moment
   for (const fileEntry of fileEntries) {
     if (fileEntry.name === "index.json") {
@@ -101,7 +149,7 @@ async function processSchemas() {
 }
 
 async function generateSitemap() {
-  const children = await processSchemas();
+  const children = await processSchemaDirectory();
   const sitemap = {
     title: "Home",
     permalink: "/",
