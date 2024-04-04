@@ -16,6 +16,9 @@ async function readSchemaJson(filePath) {
 async function processFile(fullPath, relativePath, name) {
   const schemaPath = _path.join(fullPath, name);
   const schemaData = await readSchemaJson(schemaPath);
+  if (!schemaData) {
+    return null;
+  }
   const pageName = name.split(".")[0];
   const permalink = _path.join(relativePath, pageName);
   const siteMapEntry = {
@@ -50,16 +53,28 @@ async function processDirectory(fullPath, relativePath) {
   if (pageOrderData) {
     const children = pageOrderData["pages"];
     for (const child of children) {
-      paths.push(await processFile(fullPath, relativePath, child + ".json"));
+      const childEntry = await processFile(
+        fullPath,
+        relativePath,
+        child + ".json"
+      );
+      if (childEntry) {
+        paths.push(childEntry);
+      }
     }
   } else {
     // If _pages.json does not exist, process files in the directory in arbitrary order
     const fileEntries = entries.filter((entry) => entry.isFile());
 
     for (const fileEntry of fileEntries) {
-      paths.push(
-        await processFile(fileEntry.path, relativePath, fileEntry.name)
+      const childEntry = await processFile(
+        fileEntry.path,
+        relativePath,
+        fileEntry.name
       );
+      if (childEntry) {
+        paths.push(childEntry);
+      }
     }
   }
 
@@ -76,7 +91,10 @@ async function processSchemas() {
     if (fileEntry.name === "index.json") {
       continue;
     }
-    paths.push(await processFile(fileEntry.path, "/", fileEntry.name));
+    const childEntry = await processFile(schemaDirPath, "/", fileEntry.name);
+    if (childEntry) {
+      paths.push(childEntry);
+    }
   }
 
   return paths;
