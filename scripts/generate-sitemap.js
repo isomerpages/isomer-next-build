@@ -74,6 +74,7 @@ async function processDanglingDirectory(fullPath, relativePath, name) {
       2
     )
   );
+  console.log("Generated missing index file for directory:", relativePath);
   return {
     permalink: relativePath,
     title,
