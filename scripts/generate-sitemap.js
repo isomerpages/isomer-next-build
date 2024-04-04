@@ -34,7 +34,7 @@ async function processFile(fullPath, relativePath, name) {
     if (stats.isDirectory()) {
       return {
         ...siteMapEntry,
-        paths: await processDirectory(directoryPath, permalink),
+        children: await processDirectory(directoryPath, permalink),
       };
     }
     return siteMapEntry;
@@ -45,21 +45,21 @@ async function processFile(fullPath, relativePath, name) {
 
 async function processDirectory(fullPath, relativePath) {
   const entries = await fs.readdir(fullPath, { withFileTypes: true });
-  let paths = [];
+  let children = [];
 
   // Check if _pages.json exists
   const pageOrderFilePath = _path.join(fullPath, "_pages.json");
   const pageOrderData = await readSchemaJson(pageOrderFilePath);
   if (pageOrderData) {
-    const children = pageOrderData["pages"];
-    for (const child of children) {
+    const childPages = pageOrderData["pages"];
+    for (const child of childPages) {
       const childEntry = await processFile(
         fullPath,
         relativePath,
         child + ".json"
       );
       if (childEntry) {
-        paths.push(childEntry);
+        children.push(childEntry);
       }
     }
   } else {
@@ -73,17 +73,17 @@ async function processDirectory(fullPath, relativePath) {
         fileEntry.name
       );
       if (childEntry) {
-        paths.push(childEntry);
+        children.push(childEntry);
       }
     }
   }
 
-  return paths;
+  return children;
 }
 
 async function processSchemas() {
   const entries = await fs.readdir(schemaDirPath, { withFileTypes: true });
-  let paths = [];
+  let children = [];
   const fileEntries = entries.filter((entry) => entry.isFile());
 
   // not ordering top level pages at the moment
@@ -93,19 +93,19 @@ async function processSchemas() {
     }
     const childEntry = await processFile(schemaDirPath, "/", fileEntry.name);
     if (childEntry) {
-      paths.push(childEntry);
+      children.push(childEntry);
     }
   }
 
-  return paths;
+  return children;
 }
 
 async function generateSitemap() {
-  const rootPaths = await processSchemas();
+  const children = await processSchemas();
   const sitemap = {
     title: "Home",
     permalink: "/",
-    paths: rootPaths,
+    children,
   };
 
   await fs.writeFile(sitemapPath, JSON.stringify(sitemap, null, 2));
