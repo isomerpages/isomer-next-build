@@ -49,7 +49,7 @@ async function processDanglingDirectory(fullPath, relativePath, name) {
   const listOfChildPages = {
     type: "unorderedlist",
     items: children.map(
-      (child) => `<a href=${child.permalink}>${child.title}</a>`
+      (child) => `<a href='${child.permalink}'>${child.title}</a>`
     ),
   };
 
