@@ -1,78 +1,157 @@
-const fs = require("fs").promises;
-const path = require("path");
+const fs = require("fs");
+const fsp = fs.promises;
+const _path = require("path");
 
-const schemaDirPath = path.join(__dirname, "../schema");
-const sitemapPath = path.join(__dirname, "../sitemap.json");
+const schemaDirPath = _path.join(__dirname, "../schema");
+const sitemapPath = _path.join(__dirname, "../sitemap.json");
 
 async function readSchemaJson(filePath) {
   try {
-    const schemaContent = await fs.readFile(filePath, "utf8");
+    const schemaContent = await fsp.readFile(filePath, "utf8");
     return JSON.parse(schemaContent);
   } catch (error) {
     return null;
   }
 }
 
-async function processDirectory(dirPath, relativePath = "") {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  let paths = [];
+async function processFile(fullPath, relativePath, name) {
+  const permalink = relativePath.split(".")[0];
+  const schemaData = await readSchemaJson(fullPath);
+  if (!schemaData) {
+    return null;
+  }
+  const pageName = name.split(".")[0].replace(/-/g, " ");
+  const siteMapEntry = {
+    permalink,
+    title:
+      schemaData.page.title ||
+      pageName.charAt(0).toUpperCase() + pageName.slice(1),
+  };
 
-  for (const entry of entries) {
-    const entryPath = path.join(dirPath, entry.name);
-
-    if (entry.name === "index.json") {
-      continue;
+  // check if file is actually an index page for a directory
+  const directoryPath = fullPath.split(".")[0];
+  if (fs.existsSync(directoryPath)) {
+    const isDirectory = (await fsp.stat(directoryPath)).isDirectory();
+    if (isDirectory) {
+      return {
+        ...siteMapEntry,
+        children: await processDirectory(directoryPath, permalink),
+      };
     }
+  }
+  return siteMapEntry;
+}
 
-    if (entry.isDirectory()) {
-      const subRelativePath = path.join(relativePath, entry.name);
+// generates sitemap entries and an index file for directories without an index file
+async function processDanglingDirectory(fullPath, relativePath, name) {
+  const children = await processDirectory(fullPath, relativePath);
+  // TODO: Improve the content for generated index pages
+  const listOfChildPages = {
+    type: "unorderedlist",
+    items: children.map(
+      (child) => `<a href=${child.permalink}>${child.title}</a>`
+    ),
+  };
 
-      // Check if index.json exists
-      const indexFilePath = path.join(entryPath, "index.json");
-      const indexSchemaData = await readSchemaJson(indexFilePath);
+  const pageName = name.replace(/-/g, " ");
+  const title = pageName.charAt(0).toUpperCase() + pageName.slice(1);
 
-      if (indexSchemaData) {
-        const permalink = `/${subRelativePath}`;
-        paths.push({
-          permalink,
-          title: indexSchemaData.page.title || entry.name,
-          paths: await processDirectory(entryPath, subRelativePath),
-        });
-      } else {
-        paths.push({
-          paths: await processDirectory(entryPath, subRelativePath),
-        });
+  await fsp.writeFile(
+    _path.join(fullPath + ".json"),
+    JSON.stringify(
+      {
+        version: "0.1.0",
+        layout: "content",
+        page: {
+          title,
+          contentPageHeader: {
+            summary: `Pages in ${title}`,
+          },
+        },
+        content: [listOfChildPages],
+      },
+      null,
+      2
+    )
+  );
+  console.log("Generated missing index file for directory:", relativePath);
+  return {
+    permalink: relativePath,
+    title,
+    children,
+  };
+}
+
+async function processDirectory(fullPath, relativePath) {
+  const entries = await fsp.readdir(fullPath, { withFileTypes: true });
+  const fileEntries = entries.filter((entry) => entry.isFile());
+
+  let children = [];
+  // Check if _pages.json exists
+  const pageOrderFilePath = _path.join(fullPath, "_pages.json");
+  const pageOrderData = await readSchemaJson(pageOrderFilePath);
+  if (pageOrderData) {
+    const childPages = pageOrderData["pages"];
+    for (const child of childPages) {
+      const fileName = child + ".json";
+      const childEntry = await processFile(
+        _path.join(fullPath, fileName),
+        _path.join(relativePath, fileName),
+        fileName
+      );
+      if (childEntry) {
+        children.push(childEntry);
       }
     }
-
-    const schemaData = await readSchemaJson(entryPath);
-    if (schemaData) {
-      const pageName = entry.name.split(".").slice(0, -1).join(".");
-      const permalink = `/${path.join(relativePath, pageName)}`;
-      paths.push({
-        permalink,
-        title:
-          schemaData.title ||
-          pageName.charAt(0).toUpperCase() + pageName.slice(1),
-      });
+  } else {
+    // If _pages.json does not exist, process files in the directory in arbitrary order
+    for (const fileEntry of fileEntries) {
+      if (relativePath === "/" && fileEntry.name === "index.json") {
+        continue;
+      }
+      const childEntry = await processFile(
+        _path.join(fullPath, fileEntry.name),
+        _path.join(relativePath, fileEntry.name),
+        fileEntry.name
+      );
+      if (childEntry) {
+        children.push(childEntry);
+      }
     }
   }
 
-  // Sort the paths array if needed, for example, by title or permalink
-  // paths.sort((a, b) => a.title.localeCompare(b.title));
+  // process any directories that do not have a corresponding index file
+  const danglingDirEntries = entries
+    .filter((entry) => entry.isDirectory())
+    .filter(
+      (dirEntry) =>
+        !fileEntries.find(
+          (fileEntry) => fileEntry.name === dirEntry.name + ".json"
+        )
+    );
 
-  return paths;
+  for (const dirEntry of danglingDirEntries) {
+    children.push(
+      await processDanglingDirectory(
+        _path.join(fullPath, dirEntry.name),
+        _path.join(relativePath, dirEntry.name),
+        dirEntry.name
+      )
+    );
+  }
+
+  return children;
 }
 
 async function generateSitemap() {
-  const rootPaths = await processDirectory(schemaDirPath);
+  const children = await processDirectory(schemaDirPath, "/");
   const sitemap = {
     title: "Home",
     permalink: "/",
-    paths: rootPaths,
+    children,
   };
 
-  await fs.writeFile(sitemapPath, JSON.stringify(sitemap, null, 2));
+  await fsp.writeFile(sitemapPath, JSON.stringify(sitemap, null, 2));
   console.log("Sitemap generated at:", sitemapPath);
 }
 
