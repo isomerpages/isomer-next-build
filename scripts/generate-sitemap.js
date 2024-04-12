@@ -128,9 +128,9 @@ const getSiteMapChildrenEntries = async (fullPath, relativePath) => {
     const childPages = pageOrderData["pages"];
 
     const childEntries = await Promise.all(
-      childPages.map(async (child) => {
+      childPages.map((child) => {
         const fileName = child + ".json";
-        const childEntry = await getSiteMapEntry(
+        const childEntry = getSiteMapEntry(
           path.join(fullPath, fileName),
           path.join(relativePath, fileName),
           fileName
@@ -150,13 +150,12 @@ const getSiteMapChildrenEntries = async (fullPath, relativePath) => {
         .filter(
           (entry) => !(relativePath === "/" && entry.name === "index.json")
         )
-        .map(
-          async (fileEntry) =>
-            await getSiteMapEntry(
-              path.join(fullPath, fileEntry.name),
-              path.join(relativePath, fileEntry.name),
-              fileEntry.name
-            )
+        .map((fileEntry) =>
+          getSiteMapEntry(
+            path.join(fullPath, fileEntry.name),
+            path.join(relativePath, fileEntry.name),
+            fileEntry.name
+          )
         )
     );
 
@@ -164,22 +163,23 @@ const getSiteMapChildrenEntries = async (fullPath, relativePath) => {
   }
 
   // Process any directories that do not have a corresponding index file
-  const danglingDirEntries = entries
-    .filter((entry) => entry.isDirectory())
-    .filter(
-      (dirEntry) =>
-        !fileEntries.find(
-          (fileEntry) => fileEntry.name === dirEntry.name + ".json"
-        )
-    )
-    .map(
-      async (dirEntry) =>
-        await processDanglingDirectory(
+  const danglingDirEntries = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .filter(
+        (dirEntry) =>
+          !fileEntries.find(
+            (fileEntry) => fileEntry.name === dirEntry.name + ".json"
+          )
+      )
+      .map((dirEntry) =>
+        processDanglingDirectory(
           path.join(fullPath, dirEntry.name),
           path.join(relativePath, dirEntry.name),
           dirEntry.name
         )
-    );
+      )
+  );
 
   children.push(...danglingDirEntries);
 
