@@ -5,6 +5,12 @@ const JSON_SCHEMA_VERSION = "0.1.0";
 const schemaDirPath = path.join(__dirname, "../schema");
 const sitemapPath = path.join(__dirname, "../sitemap.json");
 
+const PAGE_TYPES = {
+  default: "page",
+  file: "file",
+  link: "link",
+};
+
 const getSchemaJson = async (filePath) => {
   try {
     const schemaContent = await fs.readFile(filePath, "utf8");
@@ -20,6 +26,24 @@ const getDirectoryItemStats = async (filePath) => {
   } catch (error) {
     return null;
   }
+};
+
+const getHumanReadableFileSize = (bytes) => {
+  const unit = 1000;
+
+  if (Math.abs(bytes) < unit) {
+    return bytes + " B";
+  }
+
+  const units = ["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  let index = -1;
+
+  while (Math.abs(bytes) >= unit && index < units.length - 1) {
+    bytes /= unit;
+    index++;
+  }
+
+  return `${bytes.toFixed(1)} ${units[index]}`;
 };
 
 const getSiteMapEntry = async (fullPath, relativePath, name) => {
@@ -40,13 +64,45 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     schemaData.page.articlePageHeader?.summary ||
     schemaData.page.description ||
     "";
+  const type = Object.keys(PAGE_TYPES).includes(schemaData.layout)
+    ? PAGE_TYPES[schemaData.layout]
+    : PAGE_TYPES.default;
 
   const siteMapEntry = {
     permalink,
     lastModified: fileStats.mtime,
+    type,
     title,
     summary,
+    category: schemaData.page.category,
+    date: schemaData.page.date,
+    image: schemaData.page.image,
   };
+
+  if (type === PAGE_TYPES.file) {
+    const refFilePath = path.join(__dirname, "../public", schemaData.page.ref);
+    const refFileStats = await getDirectoryItemStats(refFilePath);
+
+    if (!refFileStats) {
+      return null;
+    }
+
+    return {
+      ...siteMapEntry,
+      ref: schemaData.page.ref,
+      fileDetails: {
+        type: path.extname(refFilePath).slice(1).toUpperCase(),
+        size: getHumanReadableFileSize(refFileStats.size),
+      },
+    };
+  }
+
+  if (type === PAGE_TYPES.link) {
+    return {
+      ...siteMapEntry,
+      ref: schemaData.page.ref,
+    };
+  }
 
   // Check if file is actually an index page for a directory
   const directoryPath = path.join(
@@ -106,6 +162,7 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   return {
     permalink: relativePath,
     lastModified: new Date(),
+    type: PAGE_TYPES.default,
     title,
     summary,
     children,
@@ -196,6 +253,7 @@ const generateSitemap = async () => {
   const sitemap = {
     permalink: "/",
     lastModified: indexJsonStat.mtime,
+    type: PAGE_TYPES.default,
     title: indexJsonSchema.page.title || "Home",
     summary: indexJsonSchema.page.description || "",
     children,
