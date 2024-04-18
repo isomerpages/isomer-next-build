@@ -22,6 +22,24 @@ const getDirectoryItemStats = async (filePath) => {
   }
 };
 
+const getHumanReadableFileSize = (bytes) => {
+  const unit = 1000;
+
+  if (Math.abs(bytes) < unit) {
+    return bytes + " B";
+  }
+
+  const units = ["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  let index = -1;
+
+  while (Math.abs(bytes) >= unit && index < units.length - 1) {
+    bytes /= unit;
+    index++;
+  }
+
+  return `${bytes.toFixed(1)} ${units[index]}`;
+};
+
 const getSiteMapEntry = async (fullPath, relativePath, name) => {
   const permalink = relativePath.split(".")[0];
   const schemaData = await getSchemaJson(fullPath);
@@ -37,16 +55,45 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     pageName.charAt(0).toUpperCase() + pageName.slice(1);
   const summary =
     schemaData.page.contentPageHeader?.summary ||
-    schemaData.page.articlePageHeader?.summary ||
+    schemaData.page.articlePageHeader?.summary.join(" ") ||
     schemaData.page.description ||
     "";
 
   const siteMapEntry = {
     permalink,
     lastModified: fileStats.mtime,
+    layout: schemaData.layout,
     title,
     summary,
+    category: schemaData.page.category,
+    date: schemaData.page.date,
+    image: schemaData.page.image,
   };
+
+  if (schemaData.layout === "file") {
+    const refFilePath = path.join(__dirname, "../public", schemaData.page.ref);
+    const refFileStats = await getDirectoryItemStats(refFilePath);
+
+    if (!refFileStats) {
+      return null;
+    }
+
+    return {
+      ...siteMapEntry,
+      ref: schemaData.page.ref,
+      fileDetails: {
+        type: path.extname(refFilePath).slice(1).toUpperCase(),
+        size: getHumanReadableFileSize(refFileStats.size),
+      },
+    };
+  }
+
+  if (schemaData.layout === "link") {
+    return {
+      ...siteMapEntry,
+      ref: schemaData.page.ref,
+    };
+  }
 
   // Check if file is actually an index page for a directory
   const directoryPath = path.join(
@@ -81,13 +128,14 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   const pageName = name.replace(/-/g, " ");
   const title = pageName.charAt(0).toUpperCase() + pageName.slice(1);
   const summary = `Pages in ${title}`;
+  const layout = "content";
 
   await fs.writeFile(
     path.join(fullPath + ".json"),
     JSON.stringify(
       {
         version: JSON_SCHEMA_VERSION,
-        layout: "content",
+        layout,
         page: {
           title,
           contentPageHeader: {
@@ -106,6 +154,7 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   return {
     permalink: relativePath,
     lastModified: new Date(),
+    layout,
     title,
     summary,
     children,
@@ -196,6 +245,7 @@ const generateSitemap = async () => {
   const sitemap = {
     permalink: "/",
     lastModified: indexJsonStat.mtime,
+    layout: indexJsonSchema.layout,
     title: indexJsonSchema.page.title || "Home",
     summary: indexJsonSchema.page.description || "",
     children,
