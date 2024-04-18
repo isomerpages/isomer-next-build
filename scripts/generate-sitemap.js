@@ -5,12 +5,6 @@ const JSON_SCHEMA_VERSION = "0.1.0";
 const schemaDirPath = path.join(__dirname, "../schema");
 const sitemapPath = path.join(__dirname, "../sitemap.json");
 
-const PAGE_TYPES = {
-  default: "page",
-  file: "file",
-  link: "link",
-};
-
 const getSchemaJson = async (filePath) => {
   try {
     const schemaContent = await fs.readFile(filePath, "utf8");
@@ -64,14 +58,11 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     schemaData.page.articlePageHeader?.summary ||
     schemaData.page.description ||
     "";
-  const type = Object.keys(PAGE_TYPES).includes(schemaData.layout)
-    ? PAGE_TYPES[schemaData.layout]
-    : PAGE_TYPES.default;
 
   const siteMapEntry = {
     permalink,
     lastModified: fileStats.mtime,
-    type,
+    layout: schemaData.layout,
     title,
     summary,
     category: schemaData.page.category,
@@ -79,7 +70,7 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     image: schemaData.page.image,
   };
 
-  if (type === PAGE_TYPES.file) {
+  if (schemaData.layout === "file") {
     const refFilePath = path.join(__dirname, "../public", schemaData.page.ref);
     const refFileStats = await getDirectoryItemStats(refFilePath);
 
@@ -97,7 +88,7 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     };
   }
 
-  if (type === PAGE_TYPES.link) {
+  if (schemaData.layout === "link") {
     return {
       ...siteMapEntry,
       ref: schemaData.page.ref,
@@ -137,13 +128,14 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   const pageName = name.replace(/-/g, " ");
   const title = pageName.charAt(0).toUpperCase() + pageName.slice(1);
   const summary = `Pages in ${title}`;
+  const layout = "content";
 
   await fs.writeFile(
     path.join(fullPath + ".json"),
     JSON.stringify(
       {
         version: JSON_SCHEMA_VERSION,
-        layout: "content",
+        layout,
         page: {
           title,
           contentPageHeader: {
@@ -162,7 +154,7 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   return {
     permalink: relativePath,
     lastModified: new Date(),
-    type: PAGE_TYPES.default,
+    layout,
     title,
     summary,
     children,
@@ -253,7 +245,7 @@ const generateSitemap = async () => {
   const sitemap = {
     permalink: "/",
     lastModified: indexJsonStat.mtime,
-    type: PAGE_TYPES.default,
+    layout: indexJsonSchema.layout,
     title: indexJsonSchema.page.title || "Home",
     summary: indexJsonSchema.page.description || "",
     children,
