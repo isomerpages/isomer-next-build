@@ -55,7 +55,7 @@ const getSiteMapEntry = async (fullPath, relativePath, name) => {
     pageName.charAt(0).toUpperCase() + pageName.slice(1);
   const summary =
     schemaData.page.contentPageHeader?.summary ||
-    schemaData.page.articlePageHeader?.summary ||
+    schemaData.page.articlePageHeader?.summary.join(" ") ||
     schemaData.page.description ||
     "";
 
