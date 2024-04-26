@@ -41,7 +41,7 @@ const getHumanReadableFileSize = (bytes) => {
 };
 
 const getSiteMapEntry = async (fullPath, relativePath, name) => {
-  const permalink = relativePath.split(".")[0];
+  const permalink = relativePath.split(".").slice(0, -1).join("-");
   const schemaData = await getSchemaJson(fullPath);
   const fileStats = await getDirectoryItemStats(fullPath);
 
