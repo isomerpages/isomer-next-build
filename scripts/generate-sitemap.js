@@ -120,9 +120,26 @@ const processDanglingDirectory = async (fullPath, relativePath, name) => {
   // TODO: Improve the content for generated index pages
   const listOfChildPages = {
     type: "unorderedlist",
-    items: children.map(
-      (child) => `<a href="${child.permalink}">${child.title}</a>`
-    ),
+    content: children.map((child) => ({
+      type: "listItem",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              marks: [
+                {
+                  type: "link",
+                  href: child.permalink,
+                },
+              ],
+              text: child.title,
+            },
+          ],
+        },
+      ],
+    })),
   };
 
   const pageName = name.replace(/-/g, " ");
