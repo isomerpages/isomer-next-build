@@ -12,10 +12,10 @@ frontend:
     preBuild:
       commands:
         - rm -rf node_modules && rm -rf .next
-        - curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/preBuild.sh | bash
+        - curl https://raw.githubusercontent.com/opengovsg/isomer/main/tooling/build/scripts/preBuild.sh | bash
     build:
       commands:
-        - curl https://raw.githubusercontent.com/isomerpages/isomer-next-build/main/scripts/build.sh | bash
+        - curl https://raw.githubusercontent.com/opengovsg/isomer/main/tooling/build/scripts/build.sh | bash
   artifacts:
     baseDirectory: out
     files:
@@ -39,13 +39,18 @@ const createApp = async (appName) => {
     environmentVariables: {
       NEXT_PUBLIC_ISOMER_NEXT_ENVIRONMENT: "staging",
     },
-    customRules: [{ source: "/<*>", target: "/404.html", status: "404" }],
+    customRules: [{ source: "</^[^.]+$|\.(?!(txt)$)([^.]+$)/>", target: "/404.html", status: "404" }],
   });
 
   await amplifyClient
     .send(params)
     .then((appInfo) => {
       appId = appInfo.app?.appId;
+
+      // You can find the path to the app in the console
+      // https://ap-southeast-1.console.aws.amazon.com/amplify/apps/appId
+      // (replace appId with the actual appId)
+      console.log("The appId is: ", appId);
 
       const mainBranchParams = new CreateBranchCommand({
         appId,
@@ -90,3 +95,8 @@ const createApp = async (appName) => {
 };
 
 createApp("mti-corp");
+
+// Other steps:
+// 1. Password protect the URL
+// 2. Add to 1password vault
+
